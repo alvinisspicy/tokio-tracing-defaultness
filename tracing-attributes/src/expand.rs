@@ -20,6 +20,7 @@ pub(crate) fn gen_function<'a, B: ToTokens + 'a>(
     args: InstrumentArgs,
     instrumented_function_name: &str,
     self_type: Option<&TypePath>,
+    defaultness: bool,
 ) -> proc_macro2::TokenStream {
     // these are needed ahead of time, as ItemFn contains the function body _and_
     // isn't representable inside a quote!/quote_spanned! macro
@@ -90,9 +91,11 @@ pub(crate) fn gen_function<'a, B: ToTokens + 'a>(
         self_type,
     );
 
+    let defaultness = defaultness.then_some(quote! { default });
+
     quote!(
         #(#outer_attrs) *
-        #vis #constness #unsafety #asyncness #abi fn #ident<#gen_params>(#params) #output
+        #vis #defaultness #constness #unsafety #asyncness #abi fn #ident<#gen_params>(#params) #output
         #where_clause
         {
             #(#inner_attrs) *
@@ -700,6 +703,7 @@ impl<'block> AsyncInfo<'block> {
                         args,
                         instrumented_function_name,
                         self.self_type.as_ref(),
+                        false,
                     )
                 }
                 // `async move { ... }`, optionally pinned

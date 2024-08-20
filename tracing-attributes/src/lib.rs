@@ -565,15 +565,25 @@ pub fn instrument(
     item: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
     let args = syn::parse_macro_input!(args as attr::InstrumentArgs);
+
+    let item_string = item.to_string();
+    let (first, second) = item_string.split_once(' ').unwrap();
+    if first == "default" {
+        let item = second.parse::<proc_macro::TokenStream>().unwrap();
+        return instrument_precise(args.clone(), item.clone(), true)
+            .unwrap_or_else(|_err| instrument_speculative(args, item, true));
+    }
+
     // Cloning a `TokenStream` is cheap since it's reference counted internally.
-    instrument_precise(args.clone(), item.clone())
-        .unwrap_or_else(|_err| instrument_speculative(args, item))
+    instrument_precise(args.clone(), item.clone(), false)
+        .unwrap_or_else(|_err| instrument_speculative(args, item, false))
 }
 
 /// Instrument the function, without parsing the function body (instead using the raw tokens).
 fn instrument_speculative(
     args: attr::InstrumentArgs,
     item: proc_macro::TokenStream,
+    defaultness: bool,
 ) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(item as MaybeItemFn);
     let instrumented_function_name = input.sig.ident.to_string();
@@ -582,6 +592,7 @@ fn instrument_speculative(
         args,
         instrumented_function_name.as_str(),
         None,
+        defaultness,
     )
     .into()
 }
@@ -591,6 +602,7 @@ fn instrument_speculative(
 fn instrument_precise(
     args: attr::InstrumentArgs,
     item: proc_macro::TokenStream,
+    defaultness: bool,
 ) -> Result<proc_macro::TokenStream, syn::Error> {
     let input = syn::parse::<ItemFn>(item)?;
     let instrumented_function_name = input.sig.ident.to_string();
@@ -615,6 +627,7 @@ fn instrument_precise(
         args,
         instrumented_function_name.as_str(),
         None,
+        defaultness,
     )
     .into())
 }
